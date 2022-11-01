@@ -75,7 +75,7 @@ class TestTorInternal(unittest.TestCase):
         # Check that we can issue a query as well
         query = 'Ipeirotis'
         scholarly.use_proxy(proxy_generator)
-        authors = [a for a in scholarly.search_author(query)]
+        authors = list(scholarly.search_author(query))
         self.assertGreaterEqual(len(authors), 1)
 
 
@@ -120,7 +120,7 @@ class TestScholarly(unittest.TestCase):
         """
         Test that sholarly.search_author('') returns no authors
         """
-        authors = [a for a in scholarly.search_author('')]
+        authors = list(scholarly.search_author(''))
         self.assertIs(len(authors), 0)
 
     def test_search_keywords(self):
@@ -137,7 +137,7 @@ class TestScholarly(unittest.TestCase):
         # TODO this seems like undesirable functionality for
         # scholarly.search_keyword() with empty string. Surely, no authors
         # should be returned. Consider modifying the method itself.
-        authors = [a for a in scholarly.search_keyword('')]
+        authors = list(scholarly.search_keyword(''))
         self.assertGreaterEqual(len(authors), 6)
 
     def test_search_keyword(self):
@@ -199,7 +199,7 @@ class TestScholarly(unittest.TestCase):
 
     def test_search_author_single_author(self):
         query = 'Steven A. Cholewiak'
-        authors = [a for a in scholarly.search_author(query)]
+        authors = list(scholarly.search_author(query))
         self.assertGreaterEqual(len(authors), 1)
         author = scholarly.fill(authors[0])
         self.assertEqual(author['name'], u'Steven A. Cholewiak, PhD')
@@ -328,22 +328,6 @@ class TestScholarly(unittest.TestCase):
         author = scholarly.search_author_id('Xxjj6IsAAAAJ')
         author = scholarly.fill(author, sections=['publications'])
         pub_index = -1
-        # Skip this part of the test since u_35RYKgDlwC has vanished from Google Scholar
-        if False:
-            for i in range(len(author['publications'])):
-                if author['publications'][i]['author_pub_id'] == 'Xxjj6IsAAAAJ:u_35RYKgDlwC':
-                    pub_index = i
-            self.assertGreaterEqual(i, 0)
-            # elided title
-            self.assertEqual(author['publications'][pub_index]['bib']['title'],
-                             u'Evaluation of toxicity of Dichlorvos (Nuvan) to fresh water fish Anabas testudineus and possible modulation by crude aqueous extract of Andrographis paniculata: A preliminary …')
-            # full text
-            pub = scholarly.fill(author['publications'][pub_index])
-            self.assertEqual(pub['bib']['title'],
-                             u'Evaluation of toxicity of Dichlorvos (Nuvan) to fresh water fish Anabas testudineus and possible modulation by crude aqueous extract of Andrographis paniculata: A preliminary investigation')
-
-            self.assertEqual(pub['bib']['citation'], "")
-
         for i in range(len(author['publications'])):
             if author['publications'][i]['author_pub_id'] == 'Xxjj6IsAAAAJ:ldfaerwXgEUC':
                 pub_index = i
@@ -630,7 +614,7 @@ class TestScholarlyWithProxy(unittest.TestCase):
         """
         Test that searching for an empty publication returns zero results
         """
-        pubs = [p for p in scholarly.search_pubs('')]
+        pubs = list(scholarly.search_pubs(''))
         self.assertIs(len(pubs), 0)
 
     def test_search_pubs_citedby(self):
@@ -643,10 +627,10 @@ class TestScholarlyWithProxy(unittest.TestCase):
         June 1, 2020.
         """
         query = 'Machine-learned epidemiology: real-time detection of foodborne illness at scale'
-        pubs = [p for p in scholarly.search_pubs(query)]
+        pubs = list(scholarly.search_pubs(query))
         self.assertGreaterEqual(len(pubs), 1)
         filled = scholarly.fill(pubs[0])
-        cites = [c for c in scholarly.citedby(filled)]
+        cites = list(scholarly.citedby(filled))
         self.assertEqual(len(cites), filled['num_citations'])
 
     def test_search_pubs_citedby_id(self):
@@ -659,7 +643,7 @@ class TestScholarlyWithProxy(unittest.TestCase):
         # Machine-learned epidemiology: real-time detection of foodborne illness at scale
         publication_id = 2244396665447968936
 
-        pubs = [p for p in scholarly.search_citedby(publication_id)]
+        pubs = list(scholarly.search_citedby(publication_id))
         self.assertGreaterEqual(len(pubs), 11)
 
     @unittest.skip(reason="The BiBTeX comparison is not reliable")
@@ -734,7 +718,7 @@ class TestScholarlyWithProxy(unittest.TestCase):
         '''
         query = 'Creating correct blur and its effect on accommodation'
         results = scholarly.search_pubs(query)
-        pubs = [p for p in results]
+        pubs = list(results)
         self.assertGreaterEqual(len(pubs), 1)
         f = scholarly.fill(pubs[0])
         self.assertTrue(f['bib']['author'] == u'Cholewiak, Steven A and Love, Gordon D and Banks, Martin S')

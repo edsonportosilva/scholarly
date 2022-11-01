@@ -21,11 +21,10 @@ from .data_types import Author, PublicationSource, ProxyMode
 class Singleton(type):
     _instances = {}
 
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args,
-                                                                 **kwargs)
-        return cls._instances[cls]
+    def __call__(self, *args, **kwargs):
+        if self not in self._instances:
+            self._instances[self] = super(Singleton, self).__call__(*args, **kwargs)
+        return self._instances[self]
 
 
 class Navigator(object, metaclass=Singleton):
@@ -111,7 +110,7 @@ class Navigator(object, metaclass=Singleton):
                 w = random.uniform(1,2)
                 time.sleep(w)
                 resp = session.get(pagerequest, timeout=timeout)
-                self.logger.debug("Session proxy config is {}".format(session.proxies))
+                self.logger.debug(f"Session proxy config is {session.proxies}")
 
                 has_captcha = self._requests_has_captcha(resp.text)
 
@@ -127,11 +126,10 @@ class Navigator(object, metaclass=Singleton):
                         self.logger.info("No other connections possible.")
                         if not self.got_403:
                             self.logger.info("Retrying immediately with another session.")
-                        else:
-                            if pm.proxy_mode not in (ProxyMode.LUMINATI, ProxyMode.SCRAPERAPI):
-                                w = random.uniform(60, 2*60)
-                                self.logger.info("Will retry after %.2f seconds (with another session).", w)
-                                time.sleep(w)
+                        elif pm.proxy_mode not in (ProxyMode.LUMINATI, ProxyMode.SCRAPERAPI):
+                            w = random.uniform(60, 2*60)
+                            self.logger.info("Will retry after %.2f seconds (with another session).", w)
+                            time.sleep(w)
                         self._new_session(premium=premium)
                         self.got_403 = True
 
@@ -150,7 +148,7 @@ class Navigator(object, metaclass=Singleton):
                     time.sleep(w)
                     continue
             except Timeout as e:
-                err = "Timeout Exception %s while fetching page: %s" % (type(e).__name__, e.args)
+                err = f"Timeout Exception {type(e).__name__} while fetching page: {e.args}"
                 self.logger.info(err)
                 if timeout < 3*self._TIMEOUT:
                     self.logger.info("Increasing timeout and retrying within same session.")
@@ -158,7 +156,7 @@ class Navigator(object, metaclass=Singleton):
                     continue
                 self.logger.info("Giving up this session.")
             except Exception as e:
-                err = "Exception %s while fetching page: %s" % (type(e).__name__, e.args)
+                err = f"Exception {type(e).__name__} while fetching page: {e.args}"
                 self.logger.info(err)
                 self.logger.info("Retrying with a new session.")
 
@@ -209,17 +207,17 @@ class Navigator(object, metaclass=Singleton):
         )
 
     def _has_captcha(self, got_id, got_class) -> bool:
+        _DOS_CLASSES = [
+            "rc-doscaptcha-body",
+        ]
+        if any(got_class(c) for c in _DOS_CLASSES):
+            raise DOSException()
         _CAPTCHA_IDS = [
             "gs_captcha_ccl", # the normal captcha div
             "recaptcha", # the form used on full-page captchas
             "captcha-form", # another form used on full-page captchas
         ]
-        _DOS_CLASSES = [
-            "rc-doscaptcha-body",
-        ]
-        if any([got_class(c) for c in _DOS_CLASSES]):
-            raise DOSException()
-        return any([got_id(i) for i in _CAPTCHA_IDS])
+        return any(got_id(i) for i in _CAPTCHA_IDS)
 
     def _get_soup(self, url: str) -> BeautifulSoup:
         """Return the BeautifulSoup for a page on scholar.google.com"""
@@ -232,19 +230,18 @@ class Navigator(object, metaclass=Singleton):
             pass
         return res
 
-    def search_authors(self, url: str)->Author:
+    def search_authors(self, url: str) -> Author:
         """Generator that returns Author objects from the author search page"""
         soup = self._get_soup(url)
 
         author_parser = AuthorParser(self)
+        cls1 = 'gs_btnPR gs_in_ib gs_btn_half '
         while True:
             rows = soup.find_all('div', 'gsc_1usr')
             self.logger.info("Found %d authors", len(rows))
             for row in rows:
                 yield author_parser.get_author(row)
-            cls1 = 'gs_btnPR gs_in_ib gs_btn_half '
-            cls2 = 'gs_btn_lsb gs_btn_srt gsc_pgn_pnx'
-            next_button = soup.find(class_=cls1+cls2)  # Can be improved
+            next_button = soup.find(class_=cls1 + 'gs_btn_lsb gs_btn_srt gsc_pgn_pnx')
             if next_button and 'disabled' not in next_button.attrs:
                 self.logger.info("Loading next page of authors")
                 url = next_button['onclick'][17:-1]
@@ -313,11 +310,12 @@ class Navigator(object, metaclass=Singleton):
         if rows:
             self.logger.info("Found institution")
 
-        res = []
-        for row in rows:
-            res.append({'Organization': row.a.text, 'id': row.a['href'].split('org=', 1)[1]})
+        res = [
+            {'Organization': row.a.text, 'id': row.a['href'].split('org=', 1)[1]}
+            for row in rows
+        ]
 
-        if rows == [] and fromauthor is True:
+        if rows == [] and fromauthor:
             try:
                 auth = next(self.search_authors(url))
                 authorg = self.search_author_id(auth.id).organization

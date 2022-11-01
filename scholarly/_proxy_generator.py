@@ -309,17 +309,17 @@ class ProxyGenerator(object):
         return self.Tor_External(tor_sock_port, tor_control_port, tor_password=None)
 
     def _has_captcha(self, got_id, got_class) -> bool:
+        _DOS_CLASSES = [
+            "rc-doscaptcha-body",
+        ]
+        if any(got_class(c) for c in _DOS_CLASSES):
+            raise DOSException()
         _CAPTCHA_IDS = [
             "gs_captcha_ccl", # the normal captcha div
             "recaptcha", # the form used on full-page captchas
             "captcha-form", # another form used on full-page captchas
         ]
-        _DOS_CLASSES = [
-            "rc-doscaptcha-body",
-        ]
-        if any([got_class(c) for c in _DOS_CLASSES]):
-            raise DOSException()
-        return any([got_id(i) for i in _CAPTCHA_IDS])
+        return any(got_id(i) for i in _CAPTCHA_IDS)
 
     def _webdriver_has_captcha(self) -> bool:
         """Tests whether the current webdriver page contains a captcha.
@@ -406,7 +406,7 @@ class ProxyGenerator(object):
         timeout = 60*60*24*7 # 1 week
         while cur < timeout:
             try:
-                cur = cur + log_interval # Update before exceptions can happen
+                cur += log_interval
                 WebDriverWait(self._get_webdriver(), log_interval).until_not(lambda drv : self._webdriver_has_captcha())
                 break
             except TimeoutException:
@@ -493,8 +493,7 @@ class ProxyGenerator(object):
             if proxy in self._dirty_freeproxies:
                 continue
             proxies = {'http': proxy, 'https': proxy}
-            proxy_works = self._check_proxy(proxies)
-            if proxy_works:
+            if proxy_works := self._check_proxy(proxies):
                 dirty_proxy = (yield proxy)
                 t1 = time.time()
             else:
@@ -534,15 +533,14 @@ class ProxyGenerator(object):
             if not proxy_works:
                 proxy = self._proxy_gen(proxy)
 
-        if n_tries == n_retries:
-            n_dirty = len(self._dirty_freeproxies)
-            self._fp_gen.close()
-            msg = ("None of the free proxies are working at the moment. "
-                  f"Marked {n_dirty} proxies dirty. Try again after a few minutes."
-                  )
-            raise MaxTriesExceededException(msg)
-        else:
+        if n_tries != n_retries:
             return True
+        n_dirty = len(self._dirty_freeproxies)
+        self._fp_gen.close()
+        msg = ("None of the free proxies are working at the moment. "
+              f"Marked {n_dirty} proxies dirty. Try again after a few minutes."
+              )
+        raise MaxTriesExceededException(msg)
 
     def ScraperAPI(self, API_KEY, country_code=None, premium=False, render=False):
         """
@@ -586,7 +584,7 @@ class ProxyGenerator(object):
 
         prefix = "http://scraperapi"
         if country_code is not None:
-            prefix += ".country_code=" + country_code
+            prefix += f".country_code={country_code}"
         if premium:
             prefix += ".premium=true"
         if render:
@@ -596,8 +594,9 @@ class ProxyGenerator(object):
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         for _ in range(3):
-            proxy_works = self._use_proxy(http=f'{prefix}:{API_KEY}@proxy-server.scraperapi.com:8001')
-            if proxy_works:
+            if proxy_works := self._use_proxy(
+                http=f'{prefix}:{API_KEY}@proxy-server.scraperapi.com:8001'
+            ):
                 self.logger.info("ScraperAPI proxy setup successfully")
                 self._session.verify = False
                 return proxy_works

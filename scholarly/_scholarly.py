@@ -412,7 +412,10 @@ class _Scholarly:
 
         """
         reg_keywords = (re.sub(_KEYWORDSEARCH_PATTERN, "_", keyword) for keyword in keywords)
-        formated_keywords = ['label:'+requests.utils.quote(keyword) for keyword in reg_keywords]
+        formated_keywords = [
+            f'label:{requests.utils.quote(keyword)}' for keyword in reg_keywords
+        ]
+
         formated_keywords = '+'.join(formated_keywords)
         url = _KEYWORDSEARCHBASE.format(formated_keywords)
         return self.__nav.search_authors(url)
@@ -457,7 +460,7 @@ class _Scholarly:
         elif object['source'] == PublicationSource.PUBLICATION_SEARCH_SNIPPET:
             return self.__nav.search_publications(object['url_related_articles'])
 
-    def pprint(self, object: Author or Publication)->None:
+    def pprint(self, object: Author or Publication) -> None:
         """Pretty print an Author or Publication container object
 
         :param object: Publication or Author container object
@@ -473,11 +476,7 @@ class _Scholarly:
         elif to_print['container_type'] == 'Author':
             parser = AuthorParser(self.__nav)
             to_print['source'] = AuthorSource(to_print['source']).name
-            if parser._sections == to_print['filled']:
-                to_print['filled'] = True
-            else:
-                to_print['filled'] = False
-
+            to_print['filled'] = parser._sections == to_print['filled']
             if 'coauthors' in to_print:
                 for coauthor in to_print['coauthors']:
                     coauthor['filled'] = False
@@ -602,19 +601,17 @@ class _Scholarly:
         soup = self.__nav._get_soup("/citations?view_op=top_venues&hl=en&vq=en")
         categories = {}
         for category in soup.find_all("a", class_="gs_md_li"):
-            if not "vq=" in category['href']:
+            if "vq=" not in category['href']:
                 continue
             vq = category['href'].split("&vq=")[1]
-            categories[category.text] = {}
-            categories[category.text][None] = vq
-
+            categories[category.text] = {None: vq}
         for category in categories:
             vq = categories[category][None]
             if vq=="en":
                 continue
             soup = self.__nav._get_soup(f"/citations?view_op=top_venues&hl=en&vq={vq}")
             for subcategory in soup.find_all("a", class_="gs_md_li"):
-                if not f"&vq={vq}_" in subcategory['href']:
+                if f"&vq={vq}_" not in subcategory['href']:
                     continue
                 categories[category][subcategory.text] = subcategory['href'].split("&vq=")[1]
 
@@ -644,7 +641,7 @@ class _Scholarly:
                         soup = self.__nav._get_soup(url_citations)
                         try:
                             for cmt in soup.find_all('ul', class_='gsc_mlhd_list')[1].find_all('li'):
-                                comment += cmt.text+"; "
+                                comment += f"{cmt.text}; "
                         except IndexError:
                             pass
                     result[int(rank.text[:-1])] = Journal(name=name.text,
@@ -656,7 +653,10 @@ class _Scholarly:
                 #print(result)
                 return result
             except KeyError:
-                raise ValueError("Invalid subcategory: %s for %s. Choose one from %s" % (subcategory, category, cat.keys()))
+                raise ValueError(
+                    f"Invalid subcategory: {subcategory} for {category}. Choose one from {cat.keys()}"
+                )
+
         except KeyError:
             raise ValueError("Invalid category: %s. Choose one from %s", category, self.journal_categories.keys())
 

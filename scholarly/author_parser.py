@@ -24,11 +24,10 @@ class AuthorParser:
                           'publications',
                           'public_access']
 
-    def get_author(self, __data)->Author:
+    def get_author(self, __data) -> Author:
         """ Fills the information for an author container
         """
-        author: Author = {'container_type': 'Author'}
-        author['filled'] = []
+        author: Author = {'container_type': 'Author', 'filled': []}
         if isinstance(__data, str):
             author['scholar_id'] = __data
             author['source'] = AuthorSource.AUTHOR_PROFILE_PAGE
@@ -36,24 +35,21 @@ class AuthorParser:
             author['source'] = AuthorSource.SEARCH_AUTHOR_SNIPPETS
             author['scholar_id'] = re.findall(_CITATIONAUTHRE, __data('a')[0]['href'])[0]
 
-            pic = '/citations?view_op=medium_photo&user={}'.format(author['scholar_id'])
+            pic = f"/citations?view_op=medium_photo&user={author['scholar_id']}"
             author['url_picture'] = _HOST.format(pic)
 
             name_class = self._find_tag_class_name(__data, 'h3', 'name')
             author['name'] = __data.find('h3', class_=name_class).text
 
             aff_class = self._find_tag_class_name(__data, 'div', 'aff')
-            affiliation = __data.find('div', class_=aff_class)
-            if affiliation:
+            if affiliation := __data.find('div', class_=aff_class):
                 author['affiliation'] = affiliation.text
 
             email_class = self._find_tag_class_name(__data, 'div', 'eml')
-            email = __data.find('div', class_=email_class)
-            if email:
+            if email := __data.find('div', class_=email_class):
                 author['email_domain'] = re.sub(_EMAILAUTHORRE, r'@', email.text)
 
-            int_class = self._find_tag_class_name(__data, 'a', 'one_int')
-            if int_class:
+            if int_class := self._find_tag_class_name(__data, 'a', 'one_int'):
                 interests = __data.find_all('a', class_=int_class)
                 author['interests'] = [i.text.strip() for i in interests]
             else:
@@ -77,9 +73,8 @@ class AuthorParser:
         author['name'] = soup.find('div', id='gsc_prf_in').text
         if author['source'] == AuthorSource.AUTHOR_PROFILE_PAGE:
             res = soup.find('img', id='gsc_prf_pup-img')
-            if res is not None:
-                if "avatar_scholar" not in res['src']:
-                    author['url_picture'] = res['src']
+            if res is not None and "avatar_scholar" not in res['src']:
+                author['url_picture'] = res['src']
         elif author['source'] == AuthorSource.CO_AUTHORS_LIST:
             picture = soup.find('img', id="gsc_prf_pup-img").get('src')
             if "avatar_scholar" in picture:
@@ -88,26 +83,24 @@ class AuthorParser:
 
         affiliation = soup.find('div', class_='gsc_prf_il')
         author['affiliation'] = affiliation.text
-        affiliation_link = affiliation.find('a')
-        if affiliation_link:
+        if affiliation_link := affiliation.find('a'):
             author['organization'] = int(affiliation_link.get('href').split("org=")[-1])
         author['interests'] = [i.text.strip() for i in
                           soup.find_all('a', class_='gsc_prf_inta')]
         email = soup.find('div', id="gsc_prf_ivh", class_="gsc_prf_il")
-        if author['source'] == AuthorSource.AUTHOR_PROFILE_PAGE:
-            if email.text != "No verified email":
-                author['email_domain'] = '@'+email.text.split(" ")[3]
-        homepage = email.find('a', class_="gsc_prf_ila")
-        if homepage:
+        if (
+            author['source'] == AuthorSource.AUTHOR_PROFILE_PAGE
+            and email.text != "No verified email"
+        ):
+            author['email_domain'] = '@'+email.text.split(" ")[3]
+        if homepage := email.find('a', class_="gsc_prf_ila"):
             author['homepage'] = homepage.get('href')
 
-        index = soup.find_all('td', class_='gsc_rsb_std')
-        if index:
+        if index := soup.find_all('td', class_='gsc_rsb_std'):
             author['citedby'] = int(index[0].text)
 
     def _fill_indices(self, soup, author):
-        index = soup.find_all('td', class_='gsc_rsb_std')
-        if index:
+        if index := soup.find_all('td', class_='gsc_rsb_std'):
             author['citedby'] = int(index[0].text)
             author['citedby5y'] = int(index[1].text)
             author['hindex'] = int(index[2].text)
@@ -146,15 +139,13 @@ class AuthorParser:
         publications = {pub['author_pub_id']:pub for pub in author['publications']}
         soup = self.nav._get_soup(_MANDATES.format(author['scholar_id'], _PAGESIZE))
         while True:
-            rows = soup.find_all('div', 'gsc_mnd_sec_na')
-            if rows:
+            if rows := soup.find_all('div', 'gsc_mnd_sec_na'):
                 for row in rows[0].find_all('a', 'gsc_mnd_art_rvw gs_nph gsc_mnd_link_font'):
                     author_pub_id = re.findall(r"citation_for_view=([\w:-]*)",
                                                row['data-href'])[0]
                     publications[author_pub_id]["public_access"] = False
 
-            rows = soup.find_all('div', 'gsc_mnd_sec_avl')
-            if rows:
+            if rows := soup.find_all('div', 'gsc_mnd_sec_avl'):
                 for row in rows[0].find_all('a', 'gsc_mnd_art_rvw gs_nph gsc_mnd_link_font'):
                     author_pub_id = re.findall(r"citation_for_view=([\w:-]*)",
                                                row['data-href'])[0]
@@ -170,7 +161,7 @@ class AuthorParser:
 
 
     def _fill_publications(self, soup, author, publication_limit: int = 0, sortby_str: str = ''):
-        author['publications'] = list()
+        author['publications'] = []
         pubstart = 0
         url_citations = _CITATIONAUTH.format(author['scholar_id'])
         url_citations += sortby_str
@@ -436,7 +427,7 @@ class AuthorParser:
             url = '{0}&pagesize={1}'.format(url_citations, _PAGESIZE)
             soup = self.nav._get_soup(url)
 
-            if sections == []:
+            if not sections:
                 for i in self._sections:
                     if i not in author['filled']:
                         (getattr(self, f'_fill_{i}')(soup, author) if i != 'publications' else getattr(self, f'_fill_{i}')(soup, author, publication_limit, sortby_str))
